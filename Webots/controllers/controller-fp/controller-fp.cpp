@@ -53,6 +53,7 @@ int main(int argc, char **argv)
     // Initialize keyboard for keyboard input mode
     wb::Keyboard *keyboard = nullptr;
     keyboard = robot->getKeyboard();
+    std::unordered_map<int, bool> debounceKeys;
     if (keyboard)
     {
         keyboard->enable(timeStep);
@@ -71,8 +72,6 @@ int main(int argc, char **argv)
     bool serialInputMode = false;
     while (robot->step(timeStep) != -1)
     {
-
-        std::cout << "Enter input option (1 or 2): ";
         inputOption = keyboard->getKey();
         if (inputOption == -1)
             continue;
@@ -82,8 +81,12 @@ int main(int argc, char **argv)
             inputOption -= 48; // Convert ASCII to integer 1 or 2
             break;
         }
-        else
-            std::cout << "Invalid option. Please enter 1 or 2." << std::endl;
+        else if (debounceKeys.find(inputOption) == debounceKeys.end() || !debounceKeys[inputOption])
+        {
+            char displayChar = static_cast<char>(inputOption);
+            std::cout << "Invalid input option: '" << displayChar << "'. Please enter 1 or 2." << std::endl;
+            debounceKeys[inputOption] = true;
+        }
     }
 
     if (inputOption == 1)
@@ -223,12 +226,10 @@ int main(int argc, char **argv)
             command = keyboard->getKey();
             if (command == -1)
                 continue; // No key pressed, continue to next iteration
-            std::cout << "Key pressed: " << static_cast<char>(command) << std::endl;
         }
 
         if (keyToPoses.find(command) == keyToPoses.end())
             continue;
-
         char displayChar = static_cast<char>(command);
         std::cout << "Command received: '" << displayChar << "' -> " << keyToPoses.at(command) << std::endl;
 
