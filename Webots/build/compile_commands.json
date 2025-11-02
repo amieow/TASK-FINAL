@@ -1,0 +1,8 @@
+[
+{
+  "directory": "D:/Project C++/ROS/TASK-FINAL/Webots/build",
+  "command": "\"C:/Program Files/Webots/msys64/mingw64/bin/g++.exe\" -DWEBOTS_USED_BY_CONTROLLER @CMakeFiles/controller-fp.dir/includes_CXX.rsp -g -o CMakeFiles/controller-fp.dir/controller-fp.cpp.obj -c \"D:/Project C++/ROS/TASK-FINAL/Webots/controllers/controller-fp/controller-fp.cpp\"",
+  "file": "D:/Project C++/ROS/TASK-FINAL/Webots/controllers/controller-fp/controller-fp.cpp",
+  "output": "CMakeFiles/controller-fp.dir/controller-fp.cpp.obj"
+}
+]
