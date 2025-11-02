@@ -11,6 +11,7 @@
 #include <webots/Motor.hpp>
 #include <webots/PositionSensor.hpp>
 #include <webots/Robot.hpp>
+#include <webots/Keyboard.hpp>
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/istreamwrapper.h>
@@ -45,38 +46,82 @@ rj::Document loadPoseFromFile(const std::string &filename)
 
 int main(int argc, char **argv)
 {
-    wb::Robot *robot = new wb::Robot();
-    const int timeStep = static_cast<int>(robot->getBasicTimeStep());
     asio::io_context io;
     asio::serial_port serialReader(io);
-
-    std::cout << "Connecting to serial port " << SERIAL_PORT << " at 115200 baud..." << std::endl;
-
-    try
+    wb::Robot *robot = new wb::Robot();
+    const int timeStep = static_cast<int>(robot->getBasicTimeStep());
+    // Initialize keyboard for keyboard input mode
+    wb::Keyboard *keyboard = nullptr;
+    keyboard = robot->getKeyboard();
+    if (keyboard)
     {
-        serialReader.open(SERIAL_PORT);
-        serialReader.set_option(asio::serial_port_base::baud_rate(115200));
+        keyboard->enable(timeStep);
+        std::cout << "Keyboard enabled for input." << std::endl;
     }
-    catch (const std::exception &e)
+    else
     {
-        std::cerr << "Error opening serial port: " << e.what() << std::endl;
-        delete robot;
-        return 1;
+        std::cerr << "Warning: Keyboard not available" << std::endl;
     }
-    std::cout << "[SUCCESS] Connected to COM3 at 115200 baud" << std::endl;
+
+    // Get input mode from user
+    std::cout << "input option(choose the number between 1 or 2) :" << std::endl;
+    std::cout << "1. Serial Input from COM3" << std::endl;
+    std::cout << "2. Keyboard Input (WASD + EQRF)" << std::endl;
+    int inputOption = -1;
+    bool serialInputMode = false;
+    while (robot->step(timeStep) != -1)
+    {
+        std::cout << "Enter input option (1 or 2): ";
+        inputOption = keyboard->getKey();
+        if (inputOption == -1)
+            continue;
+        // std::cout << "received input: " << inputOption << std::endl;
+        if (inputOption == 49 || inputOption == 50) // ASCII '1' or '2'
+        {
+            inputOption -= 48; // Convert ASCII to integer 1 or 2
+            break;
+        }
+        else
+            std::cout << "Invalid option. Please enter 1 or 2." << std::endl;
+    }
+
+    if (inputOption == 1)
+    {
+
+        std::cout << "Connecting to serial port " << SERIAL_PORT << " at 115200 baud..." << std::endl;
+
+        try
+        {
+            serialReader.open(SERIAL_PORT);
+            serialReader.set_option(asio::serial_port_base::baud_rate(115200));
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Error opening serial port: " << e.what() << std::endl;
+            delete robot;
+            return 1;
+        }
+        std::cout << "[SUCCESS] Connected to COM3 at 115200 baud" << std::endl;
+        serialInputMode = true;
+        std::cout << "Serial Input Mode selected." << std::endl;
+    }
+    else
+    {
+        std::cout << "Keyboard Input Mode selected." << std::endl;
+    }
 
     // Map to store all motors
     std::map<std::string, wb::Motor *> motors;
     std::map<std::string, wb::PositionSensor *> positionSensors;
-    std::unordered_map<char, std::string> keyToPoses = {
-        {'W', "pose-jalan-maju"},
-        {'A', "pose-geser-kiri"},
-        {'S', "pose-jalan-mundur"},
-        {'D', "pose-geser-kanan"},
-        {'E', "pose-belok-kanan"},
-        {'Q', "pose-belok-kiri"},
-        {'R', "pose-jongkok"},
-        {'F', "pose-berdiri"},
+    std::unordered_map<int, std::string> keyToPoses = {
+        {87, "pose-jalan-maju"},   // W key
+        {65, "pose-geser-kiri"},   // A key
+        {83, "pose-jalan-mundur"}, // S key
+        {68, "pose-geser-kanan"},  // D key
+        {69, "pose-belok-kanan"},  // E key
+        {81, "pose-belok-kiri"},   // Q key
+        {82, "pose-jongkok"},      // R key
+        {70, "pose-berdiri"},      // F key
     };
     const char *motorNames[] = {
         // Head motors
@@ -134,34 +179,22 @@ int main(int argc, char **argv)
 
     // launch the option for each key
     std::cout << "Available key commands and poses:" << std::endl;
-    for (const auto &[name, val] : keyToPoses)
+    for (const auto &[key_code, pose_name] : keyToPoses)
     {
-        std::cout << "Key '" << name << "' for: " << val << ".json" << std::endl;
+        char key_char = static_cast<char>(key_code);
+        std::cout << "Key '" << key_char << "' for: " << pose_name << ".json" << std::endl;
     }
-    // std::cout << "input option(choose the number between 1 or 2) :" << std::endl;
-    // std::cout << "1. Serial Input from COM3" << std::endl;
-    // std::cout << "2. Keyboard Input" << std::endl;
-    // int inputOption;
-    // bool serialInputMode = false;
-    // std::cin >> inputOption;
-    // if (inputOption == 1)
-    // {
-    //     serialInputMode = true;
-    //     std::cout << "Serial Input Mode selected." << std::endl;
-    // }
-    // else
-    // {
-    //     std::cout << "Keyboard Input Mode selected." << std::endl;
-    // }
+
     // Main control loop
     while (robot->step(timeStep) != -1)
     {
-        // Read serial data
-        std::string serialData;
-        asio::error_code ec;
-        robot->step(timeStep);
-        if (true)
+        int command = -1;
+
+        if (serialInputMode)
         {
+            // Read serial data
+            std::string serialData;
+            asio::error_code ec;
             char buf[256];
             size_t bytesRead = serialReader.read_some(asio::buffer(buf), ec);
             if (ec)
@@ -175,18 +208,28 @@ int main(int argc, char **argv)
             std::cout << "Received serial data (" << bytesRead << " bytes): " << serialData << std::endl;
             if (bytesRead > 1)
                 continue;
+
+            // Convert to uppercase if it's a lowercase letter
+            char serialChar = static_cast<char>(serialData[0]);
+            if (serialChar >= 'a' && serialChar <= 'z')
+                command = static_cast<int>(serialChar - 'a' + 'A');
+            else
+                command = static_cast<int>(serialChar);
         }
         else
         {
-            char inputChar;
-            std::cin >> inputChar;
-            serialData += inputChar;
+            // Keyboard input mode using Webots Keyboard API
+            command = keyboard->getKey();
+            if (command == -1)
+                continue; // No key pressed, continue to next iteration
+            std::cout << "Key pressed: " << static_cast<char>(command) << std::endl;
         }
 
-        char command = static_cast<char>(serialData[0]);
         if (keyToPoses.find(command) == keyToPoses.end())
             continue;
-        std::cout << "Command received: " << command << " -> " << keyToPoses.at(command) << std::endl;
+
+        char displayChar = static_cast<char>(command);
+        std::cout << "Command received: '" << displayChar << "' -> " << keyToPoses.at(command) << std::endl;
 
         rj::Document poseDoc = loadPoseFromFile("../../poses/" + keyToPoses.at(command) + ".json");
         if (poseDoc.IsNull() || !poseDoc.IsObject())
@@ -199,7 +242,6 @@ int main(int argc, char **argv)
             std::cerr << "No 'pose_group' or 'name' object in poses data for command: " << command << std::endl;
             continue;
         }
-
         const rj::Value &poseGroup = poseDoc["pose_group"];
         for (rj::SizeType i = 0; i < poseGroup.Size(); i++)
         {
@@ -213,7 +255,7 @@ int main(int argc, char **argv)
             const rj::Value &poseArray = pose["pose"];
             for (rj::SizeType j = 0; j < poseArray.Size(); j++)
             {
-                
+
                 if (!poseArray[j].IsObject() || !poseArray[j].HasMember("posisi") || !poseArray[j]["posisi"].IsArray() || !poseArray[j].HasMember("nama"))
                 {
                     std::cerr << "Invalid pose format in pose at index i=" << i << " j=" << j << std::endl;
@@ -232,8 +274,7 @@ int main(int argc, char **argv)
                     double targetPosition = posisiArray[k].GetDouble();
                     motors[motorNames[k]]->setPosition(targetPosition);
                     robot->step(timeStep);
-                    // Wait until the motor reaches the target position
-                                }
+                }
             }
         }
     }
