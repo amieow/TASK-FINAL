@@ -71,6 +71,7 @@ int main(int argc, char **argv)
     bool serialInputMode = false;
     while (robot->step(timeStep) != -1)
     {
+
         std::cout << "Enter input option (1 or 2): ";
         inputOption = keyboard->getKey();
         if (inputOption == -1)
